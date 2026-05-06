@@ -2,21 +2,19 @@ const express = require("express");
 const axios = require("axios");
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-
 app.use(express.json());
 
 /*
-========================================
-  API GAMEPASSES ROBLOX
-========================================
+====================================
+  GAMEPASSES VIA USERID
+====================================
 */
 
-app.get("/passes/:userId", async (req, res) => {
+app.get("/gamepasses/:userId", async (req, res) => {
     const userId = req.params.userId;
 
     try {
-        // 1. récupérer les jeux du joueur
+        // 1. get games du joueur
         const gamesRes = await axios.get(
             `https://games.roproxy.com/v2/users/${userId}/games?sortOrder=Asc&limit=50`
         );
@@ -24,13 +22,15 @@ app.get("/passes/:userId", async (req, res) => {
         const games = gamesRes.data.data || [];
         let allPasses = [];
 
-        // 2. parcourir chaque jeu
+        // 2. boucle games
         for (const game of games) {
-            try {
-                const gameId = game.id;
+            const placeId = game.rootPlace?.id;
+            if (!placeId) continue;
 
+            try {
+                // 3. get gamepasses du jeu
                 const passRes = await axios.get(
-                    `https://games.roproxy.com/v1/games/${gameId}/game-passes?limit=100&sortOrder=Asc`
+                    `https://games.roproxy.com/v1/games/${placeId}/game-passes?limit=100&sortOrder=Asc`
                 );
 
                 const passes = passRes.data.data || [];
@@ -50,36 +50,25 @@ app.get("/passes/:userId", async (req, res) => {
                     }
                 }
 
-            } catch (errGame) {
-                console.log("Erreur game:", game.id);
+            } catch (e) {
+                // ignore error game individuel
             }
         }
 
-        // réponse finale
-        res.json(allPasses);
+        return res.json(allPasses);
 
     } catch (err) {
-        console.log("API ERROR:", err.message);
-        res.json([]);
+        console.log("ERROR:", err.message);
+        return res.json([]);
     }
 });
 
 /*
-========================================
-  HEALTH CHECK (Render)
-========================================
+====================================
+  START SERVER
+====================================
 */
 
-app.get("/", (req, res) => {
-    res.send("API is running");
-});
-
-/*
-========================================
-  START SERVER (IMPORTANT RENDER)
-========================================
-*/
-
-app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+app.listen(process.env.PORT || 3000, () => {
+    console.log("Render API running");
 });
