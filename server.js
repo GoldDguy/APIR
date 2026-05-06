@@ -24,7 +24,24 @@ async function getUniverseId(placeId) {
 
 /*
 ========================================
-  UNIVERSE → GAMEPASSES
+  GAMEPASS PRICE (NEW API)
+========================================
+*/
+async function getGamepassPrice(gamePassId) {
+    try {
+        const res = await axios.get(
+            `https://apis.roproxy.com/game-passes/v1/game-passes/${gamePassId}/product-info`
+        );
+
+        return res.data.PriceInRobux || 0;
+    } catch (err) {
+        return 0;
+    }
+}
+
+/*
+========================================
+  GET GAMEPASSES
 ========================================
 */
 async function getGamepasses(universeId) {
@@ -33,15 +50,25 @@ async function getGamepasses(universeId) {
             `https://apis.roblox.com/game-passes/v1/universes/${universeId}/game-passes?limit=100&sortOrder=Asc`
         );
 
-        const data = res.data;
+        const passes = res.data.gamePasses || [];
 
-        return (data.gamePasses || []).map(pass => ({
-            id: pass.id,
-            productId: pass.productId,
-            name: pass.displayName,
-            price: pass.price || 0,
-            isForSale: pass.isForSale
-        }));
+        // ⚡ PARALLEL (beaucoup plus rapide)
+        const result = await Promise.all(
+            passes.map(async (pass) => {
+                const price = await getGamepassPrice(pass.id);
+
+                return {
+                    id: pass.id,
+                    productId: pass.productId,
+                    name: pass.displayName,
+                    price: price,
+                    isForSale: pass.isForSale
+                };
+            })
+        );
+
+        return result;
+
     } catch (err) {
         console.log("Gamepass error:", err.response?.status || err.message);
         return [];
@@ -60,16 +87,14 @@ app.get("/gamepasses/:placeId", async (req, res) => {
         return res.status(400).json({ error: "Missing placeId" });
     }
 
-    // 1. GET universeId
+    // 1. universeId
     const universeId = await getUniverseId(placeId);
 
     if (!universeId) {
-        return res.status(404).json({
-            error: "Universe not found from placeId"
-        });
+        return res.status(404).json({ error: "Universe not found" });
     }
 
-    // 2. GET gamepasses
+    // 2. gamepasses
     const gamepasses = await getGamepasses(universeId);
 
     return res.json({
