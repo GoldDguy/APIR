@@ -8,7 +8,7 @@ app.use(express.json());
 
 /*
 ========================================
-  GAMEPASSES API ROBLOX
+  API GAMEPASSES ROBLOX
 ========================================
 */
 
@@ -16,6 +16,7 @@ app.get("/passes/:userId", async (req, res) => {
     const userId = req.params.userId;
 
     try {
+        // 1. récupérer les jeux du joueur
         const gamesRes = await axios.get(
             `https://games.roproxy.com/v2/users/${userId}/games?sortOrder=Asc&limit=50`
         );
@@ -23,10 +24,13 @@ app.get("/passes/:userId", async (req, res) => {
         const games = gamesRes.data.data || [];
         let allPasses = [];
 
+        // 2. parcourir chaque jeu
         for (const game of games) {
             try {
+                const gameId = game.id;
+
                 const passRes = await axios.get(
-                    `https://games.roproxy.com/v1/games/${game.id}/game-passes?limit=100`
+                    `https://games.roproxy.com/v1/games/${gameId}/game-passes?limit=100&sortOrder=Asc`
                 );
 
                 const passes = passRes.data.data || [];
@@ -46,20 +50,33 @@ app.get("/passes/:userId", async (req, res) => {
                     }
                 }
 
-            } catch (e) {}
+            } catch (errGame) {
+                console.log("Erreur game:", game.id);
+            }
         }
 
+        // réponse finale
         res.json(allPasses);
 
     } catch (err) {
-        console.log(err);
+        console.log("API ERROR:", err.message);
         res.json([]);
     }
 });
 
 /*
 ========================================
-  START SERVER
+  HEALTH CHECK (Render)
+========================================
+*/
+
+app.get("/", (req, res) => {
+    res.send("API is running");
+});
+
+/*
+========================================
+  START SERVER (IMPORTANT RENDER)
 ========================================
 */
 
