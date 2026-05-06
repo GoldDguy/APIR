@@ -6,65 +6,43 @@ app.use(express.json());
 
 /*
 ========================================
-  GET GAMEPASSES FROM UNIVERSE ID
+  GAMEPASSES FROM GAME IDS
 ========================================
 */
 
-app.get("/gamepasses/:universeId", async (req, res) => {
-    const universeId = req.params.universeId;
+app.get("/gamepasses/:gameId", async (req, res) => {
+    const gameId = req.params.gameId;
 
     try {
         const response = await axios.get(
-            `https://apis.roproxy.com/game-passes/v1/games/${universeId}/game-passes?limit=100&sortOrder=Asc`
+            `https://apis.roproxy.com/game-passes/v1/games/${gameId}/game-passes?limit=100&sortOrder=Asc`
         );
 
         const data = response.data;
 
-        const passes = (data.data || []).map(pass => ({
+        const result = (data.data || []).map(pass => ({
             id: pass.id,
             name: pass.name,
             price: pass.price || 0,
             isForSale: pass.isForSale
         }));
 
-        return res.json(passes);
+        return res.json(result);
 
     } catch (err) {
-        console.log("GamePass API error:", err.message);
+        console.log("GamePass error:", err.message);
         return res.json([]);
     }
 });
 
 /*
 ========================================
-  GET PLAYER GAMES
-========================================
-*/
-
-app.get("/games/:userId", async (req, res) => {
-    const userId = req.params.userId;
-
-    try {
-        const response = await axios.get(
-            `https://games.roproxy.com/v2/users/${userId}/games?sortOrder=Asc&limit=50`
-        );
-
-        return res.json(response.data);
-
-    } catch (err) {
-        console.log("Games API error:", err.message);
-        return res.json({ data: [] });
-    }
-});
-
-/*
-========================================
-  START SERVER (RENDER REQUIREMENT)
+  START
 ========================================
 */
 
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
-    console.log("Server running on port " + PORT);
+    console.log("API running on port " + PORT);
 });
