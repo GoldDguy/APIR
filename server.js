@@ -2,31 +2,7 @@ const express = require("express");
 const axios = require("axios");
 
 const app = express();
-app.use(express.json());
 
-/*
-========================================
-  PLACE ID → UNIVERSE ID
-========================================
-*/
-async function getUniverseId(placeId) {
-    try {
-        const res = await axios.get(
-            `https://apis.roproxy.com/universes/v1/places/${placeId}/universe`
-        );
-
-        return res.data.universeId;
-    } catch (err) {
-        console.log("Universe error:", err.response?.status || err.message);
-        return null;
-    }
-}
-
-/*
-========================================
-  GAMEPASS PRICE (NEW API)
-========================================
-*/
 async function getGamepassPrice(gamePassId) {
     try {
         const res = await axios.get(
@@ -34,16 +10,11 @@ async function getGamepassPrice(gamePassId) {
         );
 
         return res.data.PriceInRobux || 0;
-    } catch (err) {
+    } catch {
         return 0;
     }
 }
 
-/*
-========================================
-  GET GAMEPASSES
-========================================
-*/
 async function getGamepasses(universeId) {
     try {
         const res = await axios.get(
@@ -52,64 +23,67 @@ async function getGamepasses(universeId) {
 
         const passes = res.data.gamePasses || [];
 
-        // ⚡ PARALLEL (beaucoup plus rapide)
-        const result = await Promise.all(
-            passes.map(async (pass) => {
-                const price = await getGamepassPrice(pass.id);
-
-                return {
-                    id: pass.id,
-                    productId: pass.productId,
-                    name: pass.displayName,
-                    price: price,
-                    isForSale: pass.isForSale
-                };
-            })
+        return await Promise.all(
+            passes.map(async (pass) => ({
+                id: pass.id,
+                productId: pass.productId,
+                name: pass.displayName,
+                price: await getGamepassPrice(pass.id),
+                isForSale: pass.isForSale
+            }))
         );
 
-        return result;
-
-    } catch (err) {
-        console.log("Gamepass error:", err.response?.status || err.message);
+    } catch {
         return [];
     }
 }
 
-/*
-========================================
-  MAIN ROUTE
-========================================
-*/
-app.get("/gamepasses/:placeId", async (req, res) => {
-    const placeId = req.params.placeId;
+app.get("/gamepasses/:userId", async (req, res) => {
 
-    if (!placeId) {
-        return res.status(400).json({ error: "Missing placeId" });
+    const userId = req.params.userId;
+
+    try {
+
+        // Jeux du joueur
+        const games = await axios.get(
+            `https://games.roproxy.com/v2/users/${userId}/games?accessFilter=2&limit=50&sortOrder=Asc`
+        );
+
+        const universes = games.data.data || [];
+
+        // Tous les gamepasses de tous les jeux
+        const allPasses = await Promise.all(
+
+            universes.map(async (game) => {
+
+                const passes = await getGamepasses(game.id);
+
+                return {
+                    universeId: game.id,
+                    placeId: game.rootPlace.id,
+                    gameName: game.name,
+                    gamepasses: passes
+                };
+
+            })
+
+        );
+
+        res.json({
+            userId,
+            games: allPasses
+        });
+
+    } catch (err) {
+
+        res.status(500).json({
+            error: err.message
+        });
+
     }
 
-    // 1. universeId
-    const universeId = await getUniverseId(placeId);
-
-    if (!universeId) {
-        return res.status(404).json({ error: "Universe not found" });
-    }
-
-    // 2. gamepasses
-    const gamepasses = await getGamepasses(universeId);
-
-    return res.json({
-        placeId,
-        universeId,
-        count: gamepasses.length,
-        gamepasses
-    });
 });
 
-/*
-========================================
-  START SERVER
-========================================
-*/
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
