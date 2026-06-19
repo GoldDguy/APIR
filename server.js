@@ -15,6 +15,18 @@ async function getGamepassPrice(gamePassId) {
     }
 }
 
+async function getGamepassImage(gamePassId) {
+    try {
+        const res = await axios.get(
+            `https://apis.roproxy.com/game-passes/v1/game-passes/${gamePassId}/product-info`
+        );
+
+        return res.data.IconImageAssetId || 0;
+    } catch {
+        return 0;
+    }
+}
+
 async function getGamepasses(universeId) {
     try {
         const res = await axios.get(
@@ -29,7 +41,8 @@ async function getGamepasses(universeId) {
                 productId: pass.productId,
                 name: pass.displayName,
                 price: await getGamepassPrice(pass.id),
-                isForSale: pass.isForSale
+                isForSale: pass.isForSale,
+                image: await getGamepassImage(pass.id)
             }))
         );
 
